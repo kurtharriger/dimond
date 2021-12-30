@@ -1,6 +1,8 @@
-(ns example.core)
+(ns example.core
+  (:require [dimond.core :as di]))
 
-(defn foo
+(defn -main
   "I don't do a whole lot."
-  [x]
-  (println x "Hello, World!"))
+  [& [args]]
+  (di/foo "world")
+  (println "Hello, World!"))

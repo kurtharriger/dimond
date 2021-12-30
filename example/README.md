@@ -4,7 +4,8 @@ A Clojure library designed to ... well, that part is up to you.
 
 ## Usage
 
-FIXME
+Ensure dimond is installed by running `lein install` in parent folder
+before runinng  `lein run
 
 ## License
 

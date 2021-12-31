@@ -2,6 +2,10 @@
 
 Dependancy Injection Library for Clojure inspried by dime
 
+## Why not component
+
+
+
 ## Usage
 
 TBD

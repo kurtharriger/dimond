@@ -21,6 +21,11 @@
     (dc/map->InjectableComponent (dissoc opts :start :stop))
     {::dc/start start ::dc/stop stop}))
 
+(defn create-function-component 
+  ([] (create-function-component (constantly nil)))
+  ([f]
+   (dc/->InjectableFunctionComponent (atom f))))
+
 ;;(def dimond-action nil)
 (defmulti dimond-action (fn [dimond action & args] action))
 

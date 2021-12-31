@@ -63,13 +63,16 @@
   ;
   )
 
-(defn create-component
-  [{:keys [start stop] :as opts}]
-  (or (and start (var? start))
-      (println "start should be a var to enable reloading"))
-  (or (and stop (var? stop))
-      (println "stop should be a var to enable reloading"))
-  (with-meta
-    (map->InjectableComponent (dissoc opts :start :stop))
-    {::start start ::stop stop}))
-
+(defn create-function-component
+  "IFn implementation for partial application that
+   allows the underlying function to be reset.
+   This allows for the fuction to be replaced 
+   when its injected dependencies haved changed"
+  ([] (create-function-component (constantly nil)))
+  ([f & [opts]]
+   (prn f opts)
+   (let [f (if (not (instance? clojure.lang.Atom f)) (atom f) f)
+         {:keys [start stop] :as opts} (or opts {})
+         props (dissoc opts :start :stop)]
+     (with-meta (map->InjectableFunctionComponent (assoc props :f f))
+       {::start start ::stop stop}))))

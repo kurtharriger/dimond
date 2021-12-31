@@ -1,9 +1,10 @@
 (ns dimond.core
   (:require [dimond.impl.component :as dc]
+            [dimond.impl.dime :as dm]
             [com.stuartsierra.component :as component]))
 
 
-(def create-component
+(defn create-component
   "Create a lifecyle method that will call the specified 
    start and stop methods.  
 
@@ -13,23 +14,16 @@
 
    If you pass only a function the component must be recreated
    to apply any changes to the start stop methods."
-  dc/create-component)
+  [{:keys [start stop] :as opts}]
+  (or (and start (var? start))
+      (println "start should be a var to enable reloading"))
+  (or (and stop (var? stop))
+      (println "stop should be a var to enable reloading"))
+  (with-meta
+    (dc/map->InjectableComponent (dissoc opts :start :stop))
+    {::dc/start start ::dc/stop stop}))
 
 
-
-(defn create-function-component
-  "IFn implementation for partial application that
-   allows the underlying function to be reset.
-   This allows for the fuction to be replaced 
-   when its injected dependencies haved changed"
-  ([] (create-function-component (constantly nil)))
-  ([f & [opts]]
-   (prn f opts)
-   (let [f (if (not (instance? clojure.lang.Atom f)) (atom f) f)
-         {:keys [start stop] :as opts} (or opts {})
-         props (dissoc opts :start :stop)]
-     (with-meta (dc/map->InjectableFunctionComponent (assoc props :f f))
-       {::dc/start start ::dc/stop stop}))))
 
 ;;(def dimond-action nil)
 (defmulti dimond-action (fn [dimond action & args] action))
@@ -61,5 +55,8 @@
     (letfn [(dimond [action & args]
             (dimond-action (with-meta dimond m) action args))]
     (with-meta dimond m))))
-  
-  
+
+
+(defn dimond-dime [namespaces]
+  (let [system-factory #(dm/build-system namespaces)]
+    (create-dimond (with-meta system-factory {}))))

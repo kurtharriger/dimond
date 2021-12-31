@@ -12,18 +12,14 @@
 
    If you pass only a function the component must be recreated
    to apply any changes to the start stop methods."
-  [{:keys [start stop state]}]
+  [{:keys [start stop] :as opts}]
   (or (and start (var? start))
       (println "start should be a var to enable reloading"))
   (or (and stop (var? stop))
       (println "stop should be a var to enable reloading"))
-  (dc/->InjectableComponent start stop (atom state)))
-
-(defn get-injected [component]
-  @(dc/get-state-container component))
-
-(defn update-injected [component f & [args]]
-  (apply swap! (concat [@(dc/get-state-container component) f] args)))
+  (with-meta
+    (dc/map->InjectableComponent (dissoc opts :start :stop))
+    {::dc/start start ::dc/stop stop}))
 
 ;;(def dimond-action nil)
 (defmulti dimond-action (fn [dimond action & args] action))
@@ -40,8 +36,8 @@
   (let [system-map (apply (factory dimond) args)]
     (reset! (-> dimond meta ::system) (component/start-system system-map))))
 
-(defmethod dimond-action ::stop [{::keys [system]} _action & _args]
-  (swap! system component/stop-system))
+(defmethod dimond-action ::stop [dimond _action & _args]
+  (swap! (-> dimond meta ::system) component/stop-system))
 
 (defmethod  dimond-action :default [dimond action & [args]] 
   (println "no action registered" action))

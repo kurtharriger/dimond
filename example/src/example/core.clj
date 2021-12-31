@@ -21,25 +21,17 @@
 (defn start-server [app-handler port]
   (httpkit/run-server (with-middleware app-handler) {:port port}))
 
-(defn server-component-start [this app]
-  (prn "Starting Server on port 9000")
-  (assoc this :stop (start-server (partial app greeter) 9000)))
+(defn start-component [{:keys [port app stop] :as this}]
+  (println (str "Starting Server on port " port))
+  (if stop
+    (println "Server is already running" stop)
+    (assoc this :stop (start-server app port))))
 
-(defn server-component-stop [this]
-  (prn "Stopping server")
-  (when-let [stop (:stop this)] (stop)))
-
-(defn start-component [component]
-  (prn "staring server")
-  (let [state (di/get-injected component)]
-    (println "Start " state component)
-    component))
-
-(defn stop-component [component]
-  (let [state (di/get-injected component)]
-    (println "Stop " state component)
-    component))
-
+(defn stop-component [{:keys [stop]}]
+  (if stop 
+    (do (prn "Stopping server")
+        (stop))
+    (prn "Server is not running.")))
 
 (defn create-system [port]
   (println (str "creating new system with " port) )
@@ -48,7 +40,7 @@
    :server (component/using
             (di/create-component {:start #'start-component
                                   :stop  #'stop-component
-                                  :state {:port port}})
+                                  :port port})
             {:app :app})))
 
 (def dimond (di/create-dimond #'create-system))

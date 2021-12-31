@@ -1,9 +1,7 @@
 (ns dimond.impl.component
   (:require [com.stuartsierra.component :as component]))
 
-(defrecord InjectableComponent [start stop state]
+(defrecord InjectableComponent [start stop]
   component/Lifecycle
-  (start [this] (when-let [start (get this :start)] (start this)))
-  (stop [this] (when-let [stop (get this :stop)] (stop this))))
-
-(defn get-state-container [component] (:state component))
+  (start [this] (when-let [start (-> this meta ::start)] (start this)))
+  (stop [this] (when-let [stop (-> this meta ::stop)] (stop this))))

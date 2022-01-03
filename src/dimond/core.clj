@@ -28,13 +28,14 @@
 
 
 (defn factory [dimond]
-  (-> dimond meta ::system-factory))
-
-(defn mutable-system [dimond]
-  (-> dimond meta ::system))
+  ((::dimond-query dimond) :create-system))
 
 (defn system [dimond]
-  @(-> dimond meta ::system))
+  ((::dimond-query dimond) :system))
+
+(defn dimond-dispatch [dimond event & args]
+  (apply (partial (::dimond-dispatch dimond) event) args))
+
 
 (defmulti system-action (fn [system action & args] action))
 
@@ -60,34 +61,39 @@
 ;;(def dimond-action nil)
 (defmulti dimond-action (fn [dimond action & args] action))
 
-(defmethod dimond-action ::start [dimond _action & [args]]
-  (prn "starting" args)
-
-  (let [system-map (apply (factory dimond) args)]
-    (reset! (mutable-system dimond) (component/start-system system-map))))
+(defmethod dimond-action ::start [dimond _action & args]
+  (dimond-dispatch dimond ::system-starting)
+  (let [system (system dimond)]
+    (if system
+      (dimond-dispatch dimond ::already-started)
+      (let [create-system (factory dimond)
+            system (apply create-system args)
+            _ (dimond-dispatch dimond ::system-created system)
+            system  (component/start-system system)
+            _ (dimond-dispatch dimond ::system-started system)
+            ]
+        nil))))
 
 (defmethod dimond-action ::stop [dimond _action & _args]
-  (swap! (mutable-system dimond) component/stop-system))
+  (dimond-dispatch dimond ::system-stopping)
+  (let [system (system dimond)
+        system (when system (component/stop-system system))]
+    (dimond-dispatch dimond ::system-stopped system)))
 
-(defmethod  dimond-action :default [dimond action & [args]] 
+(defmethod  dimond-action :default [dimond action & [args]]
   (if-let [sys (system dimond)]
     (apply system-action sys action args)
-    (println "System is not running")
-    )
-  )
+    (dimond-dispatch dimond action args)))
+
+(defn create-dimond [dimond-query dimond-dispatch]
+  (let [the-dimond {::dimond-query dimond-query
+                    ::dimond-dispatch dimond-dispatch}]
+    (fn [event & args]
+      (println "dimond event" event)
+      (apply (partial #'dimond-action the-dimond event) args))))
+  
 
 
-(defn create-dimond [system-factory]
-  (assert (ifn? system-factory) "system-factory required")
-  (when-not (var? system-factory)
-    (println "Use var to support repl reloading"))
-  (let [m {::system-factory system-factory
-           ::system (atom nil)}]
-    (letfn [(dimond [action & args]
-            (dimond-action (with-meta dimond m) action args))]
-    (with-meta dimond m))))
-
-
-(defn dimond-dime [namespaces]
-  (let [system-factory #(dm/build-system namespaces)]
-    (create-dimond (with-meta system-factory {}))))
+;; (defn dimond-dime [namespaces]
+;;   (let [system-factory #(dm/build-system namespaces)]
+;;     (create-dimond (with-meta system-factory {}))))

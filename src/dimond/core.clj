@@ -23,21 +23,25 @@
     (dc/map->InjectableComponent (dissoc opts :start :stop))
     {::dc/start start ::dc/stop stop}))
 
-
+(def debug (constantly nil))
+;(def debug println)
 
 
 
 (defn factory [dimond]
-  ((::dimond-query dimond) :create-system))
+  ((-> dimond meta ::dimond-query) :create-system))
 
 (defn system [dimond]
-  ((::dimond-query dimond) :system))
+  ((-> dimond meta ::dimond-query) :system))
 
 (defn dimond-dispatch [dimond event & args]
-  (apply (partial (::dimond-dispatch dimond) event) args))
+  (apply (partial (-> dimond meta ::dimond-dispatch) event) args))
 
-
-(defmulti system-action (fn [system action & args] action))
+(def system-action nil)
+(defmulti system-action
+  (fn [system action & args]
+    (debug "dispatching system-action " action)
+    action))
 
 (defn uget [map key]
   (let [value (get map key ::not-found)]
@@ -49,7 +53,7 @@
       value)))
 
 (defmethod system-action :default [system action & args]
-  ;;(prn "action" action args system)
+  (debug "system-action :default" action args system)
   (if (fn? action)
     (apply (partial action system) args)
     (if-let [value (uget system action)]
@@ -59,20 +63,23 @@
       (println (str "Don't know what to do with " action)))))
 
 
-;;(def dimond-action nil)
-(defmulti dimond-action (fn [dimond action & args] action))
+(def dimond-action nil)
+(defmulti dimond-action
+  (fn [dimond action & args]
+    (debug "dispatching dimond-action " action)
+    action))
 
 (defmethod dimond-action ::start [dimond _action & args]
   (dimond-dispatch dimond ::system-starting)
   (let [system (system dimond)]
     (if system
-      (dimond-dispatch dimond ::already-started)
+      (do (dimond-dispatch dimond ::already-started)
+          dimond)
       (let [create-system (factory dimond)
             system (apply create-system args)
             _ (dimond-dispatch dimond ::system-created system)
             system  (component/start-system system)
-            _ (dimond-dispatch dimond ::system-started system)
-            ]
+            _ (dimond-dispatch dimond ::system-started system)]
         dimond))))
 
 (defmethod dimond-action ::stop [dimond _action & _args]
@@ -87,65 +94,68 @@
     (apply (partial system-action sys action) args)
     (dimond-dispatch dimond action args)))
 
-
-(defmulti dimond-var-query (fn [var create-system query & args]
-                             ;; (println "var query for " var query)
-                             query))
-(defmethod dimond-var-query :system [var create-system & _] 
+(def dimond-var-query nil) 
+(defmulti dimond-var-query
+  (fn [var create-system query & args]
+    (debug "dimond-var-query query for " var query)
+    query))
+(defmethod dimond-var-query :system [var create-system & _]
   (deref var))
 (defmethod dimond-var-query :system-factory [var create-system & _] create-system)
 (defmethod dimond-var-query :create-system [var create-system & _]  create-system)
 
-(defmulti dimond-var-dispatch (fn [var event & args]
-                            ;; (println "event  " event)
-                            event))
+(def dimond-var-dispatch nil)
+(defmulti dimond-var-dispatch
+  (fn [var event & args]
+    (debug "dimond-var-dispatch for " event)
+    event))
 
 (defmethod dimond-var-dispatch ::system-started [var event & [system]]
   (alter-var-root var (constantly system)))
 (defmethod dimond-var-dispatch ::system-stopped [var event & [system]]
   (alter-var-root var (constantly nil)))
+(defmethod dimond-var-dispatch :default [var event & _]
+  (debug "no handler for " event))
 
-(defmethod dimond-var-dispatch :default [var event & args]
-  (println "no handler for " event args))
-
-(defn var-storage [var create-system]  
+(defn var-storage [var create-system]
   (assert (var? var) "var required")
   (assert (ifn? create-system) "create system required")
   {::dimond-query (partial #'dimond-var-query var create-system)
    ::dimond-dispatch (partial #'dimond-var-dispatch var)})
 
 
-(defmulti dimond-atom-query (fn [atom create-system query & args]
-                             ;; (println "var query for " atom query)
-                             query))
+(defmulti dimond-atom-query
+  (fn [atom create-system query & args]
+    (debug "dimond-atom-query query for " query)
+    query))
+
 (defmethod dimond-atom-query :system [atom create-system & _] @atom)
 (defmethod dimond-atom-query :system-factory [atom create-system & _] create-system)
 (defmethod dimond-atom-query :create-system [atom create-system & _]  create-system)
 
-(defmulti dimond-atom-dispatch (fn [atom event & args]
-                                (println "event  " event)
-                                event))
+(defmulti dimond-atom-dispatch
+  (fn [atom event & args]
+    (debug "dimond-atom-dispatch " event)
+    event))
 
 (defmethod dimond-atom-dispatch ::system-started [atom event & [system]]
   (reset! atom system))
 (defmethod dimond-atom-dispatch ::system-stopped [atom event & [system]]
   (reset! atom nil))
+(defmethod dimond-atom-dispatch :default [var event & _]
+  (debug "no handler for " event))
 
-(defmethod dimond-atom-dispatch :default [atom event & args]
-  (println "no handler for " event args))
 
 (defn var-storage [var create-system]
-  (println "var storage")
   (assert (var? var) "var required")
   (assert (ifn? create-system) "create system required")
   {::dimond-query (partial #'dimond-var-query var create-system)
    ::dimond-dispatch (partial #'dimond-var-dispatch var)})
 
 (defn atom-storage [atom create-system]
-  (println "atom storage" atom create-system)
   (assert (instance? clojure.lang.Atom atom) "atom required")
   (assert (ifn? create-system) "create system required")
-  
+
   {::dimond-query (partial #'dimond-atom-query atom create-system)
    ::dimond-dispatch (partial #'dimond-atom-dispatch atom)})
 
@@ -158,27 +168,26 @@
         argmap (apply hash-map args)
         {::keys [var atom create-system]} argmap
 
-        _ (assert (not (and (contains? argmap ::var) (nil? var))) 
+        _ (assert (not (and (contains? argmap ::var) (nil? var)))
                   "Must specify #'var not var")
 
-        the-dimond
+        dimond-state
         (if (and var create-system)
           (merge argmap (var-storage var create-system))
           argmap)
 
-
-        the-dimond
+        dimond-state
         (if (and atom create-system)
-          (merge the-dimond (atom-storage atom create-system))
-          the-dimond)]
-    
-     (prn the-dimond)
-    (assert (contains? the-dimond ::dimond-query) (str "must have " ::dimond-query))
-    (assert (contains? the-dimond ::dimond-dispatch) (str "must have " ::dimond-dispatch))
-    (with-meta (fn [event & args]
-                 (apply (partial #'dimond-action the-dimond event) args))
-      the-dimond)))
-  
+          (merge dimond-state (atom-storage atom create-system))
+          dimond-state)
+        
+        _ (assert (contains? dimond-state ::dimond-query) (str "must have " ::dimond-query))
+        _ (assert (contains? dimond-state ::dimond-dispatch) (str "must have " ::dimond-dispatch))
+        ]    
+    (letfn [(the-dimond [event & args]
+              (apply (partial #'dimond-action (with-meta the-dimond dimond-state) event) args))]
+      (with-meta the-dimond dimond-state))))
+
 
 
 ;; (defn dimond-dime [namespaces]

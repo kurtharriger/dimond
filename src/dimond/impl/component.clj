@@ -70,7 +70,6 @@
    when its injected dependencies haved changed"
   ([] (create-function-component (constantly nil)))
   ([f & [opts]]
-   (prn f opts)
    (let [f (if (not (instance? clojure.lang.Atom f)) (atom f) f)
          {:keys [start stop] :as opts} (or opts {})
          props (dissoc opts :start :stop)]

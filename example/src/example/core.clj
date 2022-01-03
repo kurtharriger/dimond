@@ -10,15 +10,17 @@
             
             [signal.handler :refer [on-signal]]))
 
+(def debug (constantly nil))
+(def debug println)
+
 (defn ^:expose greeter [name]
   (str "Hello, " name))
 
 (defn ^:expose greeter2 [name]
   (str "Hi, " name))
 
-
 (defn ^:expose app [^:inject greeter req]
-  (prn greeter req)
+  ;;(debug "app: " greeter req)
   {:status  200
    :headers {"Content-Type" "text/html"}
    :body    (greeter (get-in req [:query-params "name"] "World"))})
@@ -28,22 +30,22 @@
       (ring.middleware.params/wrap-params)))
 
 (defn start-server [{:keys [port app stop] :as this}]
-  (println (str "Starting Server on port " port))
+  (debug "start-server: " (str "Starting Server on port " port))
   (if stop
-    (println "Server is already running" stop)
+    (debug "start-server: Server is already running")
     (assoc this :stop
            (httpkit/run-server (with-middleware app) {:port port}))))
 
 (defn stop-server [{:keys [stop]}]
   (if stop
-    (do (prn "Stopping server")
+    (do (debug "stop-server: Stopping server")
         (stop))
-    (prn "Server is not running.")))
+    (debug "stop-server: Server is not running.")))
 
 (def dime-system (dmd/build-system [*ns*]))
 
 (defn create-system [port]
-  (println (str "Creating new system with port " port))
+  (debug (str "create-system: Creating new system with port " port))
   (assoc dime-system
          :server (component/using
                (di/create-component {:start #'start-server
@@ -57,6 +59,7 @@
              ::di/var #'system
              ::di/create-system #'create-system))
 
+
 (defn -main
   "Example ring server using component"
   [& args]
@@ -66,15 +69,3 @@
     (println (str "Server running on port " port))
     (on-signal :term shutdown)
     (on-signal :int  shutdown)))
-
-
-#_(defn -main
-    "Example ring server no reloading or di"
-    [& args]
-    (let [port (or (edn/read-string (first args)) 3000)
-          app  (partial app greeter)
-          stop-server  (start-server app port)
-          shutdown (fn [sig] (println (str "Caught " (name sig) " signal. Stopping Server")) (stop-server))]
-      (println (str "Server running on port " port))
-      (on-signal :term shutdown)
-      (on-signal :int  shutdown)))

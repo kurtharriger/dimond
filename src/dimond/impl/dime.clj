@@ -7,6 +7,10 @@
    [dime.core :as dc]))
 
 
+
+(def debug (constantly nil))
+;;(def debug println)
+
 (defn scan-namespaces [namespaces]
   (-> (mapv #(if (instance? clojure.lang.Namespace %) (-> % str symbol) %)
             namespaces)

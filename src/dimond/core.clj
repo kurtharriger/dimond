@@ -49,7 +49,7 @@
       value)))
 
 (defmethod system-action :default [system action & args]
-  (prn "action" action args system)
+  ;;(prn "action" action args system)
   (if (fn? action)
     (apply (partial action system) args)
     (if-let [value (uget system action)]
@@ -90,7 +90,7 @@
   (let [the-dimond {::dimond-query dimond-query
                     ::dimond-dispatch dimond-dispatch}]
     (fn [event & args]
-      (println "dimond event" event)
+      ;;(println "dimond event" event)
       (apply (partial #'dimond-action the-dimond event) args))))
   
 

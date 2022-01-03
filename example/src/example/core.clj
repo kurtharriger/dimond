@@ -19,11 +19,9 @@
 (defn ^:expose greeter2 [name]
   (str "Hi, " name))
 
-(defn ^:expose app [^:inject greeter req]
-  ;;(debug "app: " greeter req)
-  {:status  200
-   :headers {"Content-Type" "text/html"}
-   :body    (greeter (get-in req [:query-params "name"] "World"))})
+(defn ^:expose app [^{:inject :greeter} greeter req]
+  (debug "app: " greeter req)
+  {:body    (greeter (get-in req [:query-params "name"] "World2"))})
 
 (defn with-middleware [app]
   (-> app

@@ -49,6 +49,7 @@
       value)))
 
 (defmethod system-action :default [system action & args]
+  (prn "action" action args system)
   (if (fn? action)
     (apply (partial action system) args)
     (if-let [value (uget system action)]
@@ -80,9 +81,9 @@
         system (when system (component/stop-system system))]
     (dimond-dispatch dimond ::system-stopped system)))
 
-(defmethod  dimond-action :default [dimond action & [args]]
+(defmethod  dimond-action :default [dimond action & args]
   (if-let [sys (system dimond)]
-    (apply system-action sys action args)
+    (apply (partial system-action sys action) args)
     (dimond-dispatch dimond action args)))
 
 (defn create-dimond [dimond-query dimond-dispatch]

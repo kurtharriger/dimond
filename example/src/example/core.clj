@@ -68,55 +68,38 @@
 
 (defonce system nil)
 
-(def dimond-query nil)
-(defmulti dimond-query (fn [query & args] 
-                         (println "quering for " query)
-                         query))
-(defmethod dimond-query :system [& _] system)
-(defmethod dimond-query :system-factory [& _] #'create-system)
-(defmethod dimond-query :create-system [& _]  #'create-system)
+;; (def dimond-query nil)
+;; (defmulti dimond-query (fn [query & args] 
+;;                          (println "quering for " query)
+;;                          query))
+;; (defmethod dimond-query :system [& _] system)
+;; (defmethod dimond-query :system-factory [& _] #'create-system)
+;; (defmethod dimond-query :create-system [& _]  #'create-system)
 
+;; (defmulti dimond-dispatch (fn [event & args]
+;;                          (println "event  " event)
+;;                          event))
+;; (defmethod dimond-dispatch ::di/system-started [event & [system]] 
+;;   (alter-var-root #'system (constantly system)))
+;; (defmethod dimond-dispatch ::di/system-stopped [event & [system]]
+;;   (alter-var-root #'system (constantly nil)))
 
-;; (def dimond-query
-;;   (let [queries {:system (constantly system)
-;;                  :create-system (constantly #'create-system)}
-;;         default (fn [cmd args] (fn [] (println "warn: " cmd " not found")))]
-;;     (fn [query & args]
-;;       (println "dimond query" query)
-;;       (let [q (get queries query (default query args))]
-;;         (apply q args)))))
+;; (defmethod dimond-dispatch :default [event & args] 
+;;   (println "no handler for " event args))
+;; (def dimond (di/dimond
+;;              ::di/dimond-query #'dimond-query
+;;              ::di/dimond-dispatch #'dimond-dispatch))
 
-
-;; (def dimond-dispatch
-;;   (let [events {::di/system-started (fn [system] (alter-var-root #'system (constantly system)))
-;;                 ::di/system-stopped (fn [system] (alter-var-root #'system (constantly nil)))}
-;;         default (fn [event args] (fn [] (println "no action for  " event " ")))]
-;;     (fn [event & args]
-;;       (println "dimond event" event)
-;;       (let [e (get events event (default event args))]
-;;         (apply e args)))))
-  
-(defmulti dimond-dispatch (fn [event & args]
-                         (println "event  " event)
-                         event))
-(defmethod dimond-dispatch ::di/system-started [event & [system]] 
-  (alter-var-root #'system (constantly system)))
-(defmethod dimond-dispatch ::di/system-stopped [event & [system]]
-  (alter-var-root #'system (constantly nil)))
-
-(defmethod dimond-dispatch :default [event & args] 
-  (println "no handler for " event args))
+(defonce asystem (atom nil))
 
 (def dimond (di/dimond
-            ;;::di/var #'system
-             ;;::di/create-system #'create-system
-             ::di/dimond-query #'dimond-query
-             ::di/dimond-dispatch #'dimond-dispatch))
+             ::di/atom asystem
+             ::di/create-system #'create-system))
 
 ;; swap implementation of greeter without restarting system
 (comment
-  (swap! (-> dimond meta ::di/system deref :app :f) (constantly (partial app greeter)))
-  (swap! (-> dimond meta ::di/system deref :app :f) (constantly (partial app greeter2)))
+   (swap! (-> dimond meta ::di/system deref :app :f) (constantly (partial app greeter)))
+   (swap! (-> dimond meta ::di/system deref :app :f) (constantly (partial app greeter2)))
   ;
   )
 

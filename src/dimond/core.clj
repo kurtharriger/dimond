@@ -130,7 +130,7 @@
     (assert (contains? the-dimond ::dimond-dispatch ) (str "must have " ::dimond-dispatch))
     (with-meta (fn [event & args]
                  (apply (partial #'dimond-action the-dimond event) args))
-      {::dimond the-dimond})))
+      the-dimond)))
   
 
 

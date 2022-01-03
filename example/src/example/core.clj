@@ -68,20 +68,13 @@
 
 (defonce system nil)
 
-(defmulti dimond-query (fn [query & args] 
-                         (println "queried for " query)
-                         query))
-(defmethod dimond-query :system [& _] system)
-(defmethod dimond-query :system-factory [& _] #'create-system)
-(defmethod dimond-query :create-system [& _]  #'create-system)
+;; (defmulti dimond-query (fn [query & args] 
+;;                          (println "queried for " query)
+;;                          query))
+;; (defmethod dimond-query :system [& _] system)
+;; (defmethod dimond-query :system-factory [& _] #'create-system)
+;; (defmethod dimond-query :create-system [& _]  #'create-system)
 
-
-(defmulti dimond-var-query (fn [var query & args]
-                         (println "var query for " var query)
-                         query))
-(defmethod dimond-var-query :system [var & _] var)
-(defmethod dimond-var-query :system-factory [var & _] #'create-system)
-(defmethod dimond-var-query :create-system [var & _]  #'create-system)
 
 ;; (def dimond-query
 ;;   (let [queries {:system (constantly system)
@@ -113,9 +106,12 @@
 (defmethod dimond-dispatch :default [event & args] 
   (println "no handler for " event args))
 
-(def dimond (di/create-dimond
-             (partial #'dimond-var-query #'system) 
-             #'dimond-dispatch))
+(def dimond (di/dimond
+             ::di/var #'system
+             ::di/create-system #'create-system
+            ;;  ::di/dimond-query (partial #'dimond-var-query #'system) 
+            ;;  ::di/dimond-dispatch #'dimond-dispatch
+             ))
 
 ;; swap implementation of greeter without restarting system
 (comment

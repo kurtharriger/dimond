@@ -40,25 +40,10 @@
         (stop))
     (prn "Server is not running.")))
 
-
-;; (defn app-component [greeter]
-;;   (dmc/create-function-component (partial #'app greeter)))
-
-
-;; (defn create-system [port]
-;;   (println (str "creating new system with " port))
-;;   (component/system-map
-;;    :app (app-component greeter)
-;;    :server (component/using
-;;             (di/create-component {:start #'start-server
-;;                                   :stop  #'stop-server
-;;                                   :port port})
-;;             {:app :app})))
-
 (def dime-system (dmd/build-system [*ns*]))
 
 (defn create-system [port]
-  (println (str "creating new system with port " port))
+  (println (str "Creating new system with port " port))
   (assoc dime-system
          :server (component/using
                (di/create-component {:start #'start-server
@@ -68,41 +53,9 @@
 
 (defonce system nil)
 
-;; (def dimond-query nil)
-;; (defmulti dimond-query (fn [query & args] 
-;;                          (println "quering for " query)
-;;                          query))
-;; (defmethod dimond-query :system [& _] system)
-;; (defmethod dimond-query :system-factory [& _] #'create-system)
-;; (defmethod dimond-query :create-system [& _]  #'create-system)
-
-;; (defmulti dimond-dispatch (fn [event & args]
-;;                          (println "event  " event)
-;;                          event))
-;; (defmethod dimond-dispatch ::di/system-started [event & [system]] 
-;;   (alter-var-root #'system (constantly system)))
-;; (defmethod dimond-dispatch ::di/system-stopped [event & [system]]
-;;   (alter-var-root #'system (constantly nil)))
-
-;; (defmethod dimond-dispatch :default [event & args] 
-;;   (println "no handler for " event args))
-;; (def dimond (di/dimond
-;;              ::di/dimond-query #'dimond-query
-;;              ::di/dimond-dispatch #'dimond-dispatch))
-
-(defonce asystem (atom nil))
-
 (def dimond (di/dimond
-             ::di/atom asystem
+             ::di/var #'system
              ::di/create-system #'create-system))
-
-;; swap implementation of greeter without restarting system
-(comment
-   (swap! (-> dimond meta ::di/system deref :app :f) (constantly (partial app greeter)))
-   (swap! (-> dimond meta ::di/system deref :app :f) (constantly (partial app greeter2)))
-  ;
-  )
-
 
 (defn -main
   "Example ring server using component"

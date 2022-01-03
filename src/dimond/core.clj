@@ -89,7 +89,7 @@
 
 
 (defmulti dimond-var-query (fn [var create-system query & args]
-                             (println "var query for " var query)
+                             ;; (println "var query for " var query)
                              query))
 (defmethod dimond-var-query :system [var create-system & _] 
   (deref var))
@@ -97,7 +97,7 @@
 (defmethod dimond-var-query :create-system [var create-system & _]  create-system)
 
 (defmulti dimond-var-dispatch (fn [var event & args]
-                            (println "event  " event)
+                            ;; (println "event  " event)
                             event))
 
 (defmethod dimond-var-dispatch ::system-started [var event & [system]]
@@ -109,18 +109,16 @@
   (println "no handler for " event args))
 
 (defn var-storage [var create-system]  
-  (assert var "var required")
-  (assert create-system "create system required")
-  (println "var storage" var create-system)
+  (assert (var? var) "var required")
+  (assert (ifn? create-system) "create system required")
   {::dimond-query (partial #'dimond-var-query var create-system)
    ::dimond-dispatch (partial #'dimond-var-dispatch var)})
 
 
 (defmulti dimond-atom-query (fn [atom create-system query & args]
-                             (println "var query for " atom query)
+                             ;; (println "var query for " atom query)
                              query))
-(defmethod dimond-atom-query :system [atom create-system & _]
-  (do @atom))
+(defmethod dimond-atom-query :system [atom create-system & _] @atom)
 (defmethod dimond-atom-query :system-factory [atom create-system & _] create-system)
 (defmethod dimond-atom-query :create-system [atom create-system & _]  create-system)
 
@@ -137,6 +135,7 @@
   (println "no handler for " event args))
 
 (defn var-storage [var create-system]
+  (println "var storage")
   (assert (var? var) "var required")
   (assert (ifn? create-system) "create system required")
   {::dimond-query (partial #'dimond-var-query var create-system)
@@ -155,15 +154,19 @@
 (defn dimond [& args]
   (let [;; the-dimond {::dimond-query dimond-query
         ;;             ::dimond-dispatch dimond-dispatch}
+
         argmap (apply hash-map args)
         {::keys [var atom create-system]} argmap
+
+        _ (assert (not (and (contains? argmap ::var) (nil? var))) 
+                  "Must specify #'var not var")
 
         the-dimond
         (if (and var create-system)
           (merge argmap (var-storage var create-system))
           argmap)
-      
-        
+
+
         the-dimond
         (if (and atom create-system)
           (merge the-dimond (atom-storage atom create-system))

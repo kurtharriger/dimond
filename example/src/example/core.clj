@@ -10,8 +10,8 @@
             
             [signal.handler :refer [on-signal]]))
 
-(def debug (constantly nil))
-(def debug println)
+(def ^:dynamic *debug* false)
+(defn debug [& args] (when *debug* (apply println args)))
 
 (defn ^:expose greeter [name]
   (str "Hello, " name))
@@ -64,3 +64,6 @@
     (println (str "Server running on port " port))
     (on-signal :term shutdown)
     (on-signal :int  shutdown)))
+
+;; uncomment in repl to auto refresh
+;; (user/dimond ::di/refresh)

@@ -3,17 +3,13 @@
             [dimond.impl.dime :as dm]
             [com.stuartsierra.component :as component]))
 
+(def ^:dynamic *debug* false)
+(defn debug [& args] (when *debug* (apply (partial println (str *ns* ":") ) args)))
+
 
 (defn create-component
   "Create a lifecyle method that will call the specified 
-   start and stop methods.  
-
-   If you pass a var (#'my-start-method) any changes made by 
-   repl session will be applied without recreating 
-   the component (and thus restarting the system).
-
-   If you pass only a function the component must be recreated
-   to apply any changes to the start stop methods."
+   start and stop methods."
   [{:keys [start stop] :as opts}]
   (or (and start (var? start))
       (println "start should be a var to enable reloading"))
@@ -23,17 +19,16 @@
     (dc/map->InjectableComponent (dissoc opts :start :stop))
     {::dc/start start ::dc/stop stop}))
 
-(def debug (constantly nil))
-(def debug println)
-
-
-
 (defn factory [dimond]
   ((-> dimond meta ::dimond-query) :create-system))
 
 (defn system [dimond]
   ((-> dimond meta ::dimond-query) :system))
 
+;; todo: although intended for side-effecting events it may make sense if 
+;; all handlers still return the dimond so that var/atom store is only
+;; needed for repl and not needed if you are threading operations in a main 
+;; method where dimond can be chained
 (defn dimond-dispatch [dimond event & args]
   (apply (partial (-> dimond meta ::dimond-dispatch) event) args))
 
@@ -91,9 +86,9 @@
 
 (defmethod dimond-action ::refresh [dimond _action & _args]
   (dimond-dispatch dimond ::system-refreshing)
-  (let [system (system dimond)
-        system (when system (component/stop-system system))]
-    (dimond-dispatch dimond ::system-refreshed system))
+  (when-let [system (system dimond)]
+    (let [system (dm/refresh-dependencies system)]
+      (dimond-dispatch dimond ::system-refreshed system)))
   dimond)
 
 (defmethod  dimond-action :default [dimond action & args]
@@ -104,7 +99,7 @@
 (def dimond-var-query nil) 
 (defmulti dimond-var-query
   (fn [var create-system query & args]
-    (debug "dimond-var-query query for " var query)
+    (debug "dimond-var-query query for " query)
     query))
 (defmethod dimond-var-query :system [var create-system & _]
   (deref var))
@@ -153,6 +148,7 @@
 (defmethod dimond-atom-dispatch ::system-stopped [atom event & [system]]
   (reset! atom nil))
 (defmethod dimond-atom-dispatch ::system-refreshed [var event & [system]]
+  (debug "refreshed" system)
   (reset! var (constantly system)))
 (defmethod dimond-atom-dispatch :default [var event & _]
   (debug "no handler for " event))

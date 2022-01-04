@@ -2,15 +2,12 @@
   (:require
    ;[com.stuartsierra.dependency :as dep]
    [com.stuartsierra.component :as component]
-   [dimond.impl.component :as dmc]
    [dime.var :as dv]
-   [dime.type :as dt]
-   [dime.core :as dc]))
-
-
+   [dime.type :as dt]))
 
 (def debug (constantly nil))
-(def debug println)
+;;(def debug println)
+(def warn println)
 
 (defn scan-namespaces [namespaces]
   (-> (mapv #(if (instance? clojure.lang.Namespace %) (-> % str symbol) %)
@@ -40,7 +37,7 @@
             (= (get-var-dep-ids the-var) (get-component-dep-ids  var-component)))
       the-var
       ;; todo: dispatch event instead?
-      (do (debug the-var " dependency list has changed.  system refresh required to use new function")
+      (do (warn the-var " dependency list has changed.  system refresh required to use new function")
           (get-cached-var-value var-component)))))
 
 (defn get-partial-args [var-component]
@@ -73,17 +70,21 @@
 
 
 (defn create-var-component* [the-var]
-  (with-meta (->VarComponent) 
-    {::var the-var
-     ; also save a copy of the var and dependencies
-     ::value (deref the-var)
-     ::dep-ids (get-var-dep-ids the-var)}))
+  (with-meta (->VarComponent) {::var the-var}))
+
+(defn is-var-component? [component]
+  (not (nil? (::var (meta component)))))
 
 (defn update-component-dependency-meta [component]
-  (-> component
-      (vary-meta dissoc ::component/dependencies)
-      (component/using
-       (vec (get-var-dep-ids (get-var component))))))
+  (if (is-var-component? component)
+    (let [the-var (get-var component)
+          dep-ids (get-var-dep-ids the-var)]
+      (-> component
+          (vary-meta dissoc ::component/dependencies)
+          (vary-meta assoc ::value (deref the-var) ::dep-ids dep-ids)
+          (component/using
+           (vec (get-var-dep-ids (get-var component))))))
+    component))
 
 (defn create-var-component [the-var]
   (-> the-var create-var-component* update-component-dependency-meta))
@@ -97,18 +98,12 @@
   (apply tp (range 1 25)) ;; => [0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24]
   )
 
-(defn build-system [namespaces] 
-  (let [dime (scan-namespaces namespaces)]
-    (zipmap (keys dime) (map create-var-component (vals dime)))))
-
 (defn refresh-dependencies [system]
   (let [component-keys (keys system)
-        system
-        (zipmap component-keys
-                (mapv update-component-dependency-meta (vals system)))]
-    ;; updating with identity reinjects depenedencies 
-    ;; todo: trigger an event to allow components to optionally 
-    ;; restart, in most cases I want preserve system state in
-    ;; repl 
-    (component/update-system system component-keys identity))
-  )
+        system         (zipmap component-keys
+                               (mapv update-component-dependency-meta (vals system)))
+        ; updating with identity reinjects depenedencies 
+        ; todo: trigger an event to allow components to optionally 
+        ; restart?
+        system (component/update-system system component-keys identity)]
+    system))

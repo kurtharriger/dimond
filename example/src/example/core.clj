@@ -21,7 +21,7 @@
 
 (defn ^:expose app [^{:inject :greeter} greeter req]
   (debug "app: " greeter req)
-  {:body    (greeter (get-in req [:query-params "name"] "World2"))})
+  {:body    (greeter (get-in req [:query-params "name"] "World"))})
 
 (defn with-middleware [app]
   (-> app
@@ -40,9 +40,10 @@
         (stop))
     (debug "stop-server: Server is not running.")))
 
-(def dime-system (dmd/build-system [*ns*]))
+;;(def dime-system (di/build-system [*ns*]))
 
-(defn create-system [port]
+
+(defn create-system [dime-system port]
   (debug (str "create-system: Creating new system with port " port))
   (assoc dime-system
          :server (component/using
@@ -55,7 +56,11 @@
 
 (def dimond (di/dimond
              ::di/var #'system
-             ::di/create-system #'create-system))
+             ::di/namespaces [*ns*]
+             ::di/create-system #'create-system
+             ))
+
+
 
 
 (defn -main

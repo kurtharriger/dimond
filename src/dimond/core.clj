@@ -24,7 +24,7 @@
     {::dc/start start ::dc/stop stop}))
 
 (def debug (constantly nil))
-;(def debug println)
+(def debug println)
 
 
 
@@ -32,7 +32,26 @@
   ((-> dimond meta ::dimond-query) :create-system))
 
 (defn system [dimond]
-  ((-> dimond meta ::dimond-query) :system))
+  (when-let [system ((-> dimond meta ::dimond-query) :system)]
+    ;; todo maybe raise an event to update system
+    ;; stored in var/atom? but what would be the trigger?
+    ;; this way we ensure the dependencies are updated
+    ;; at query time. Right now this seems fine since
+    ;; associng dependencies does not have other side
+    ;; effects such as restarting components... but
+    ;; could blindly applying dependencies may not
+    ;; always be what you want and sometimes a component
+    ;; may need to be restarted if a dependency changes
+    ;; but side effects should not happen here, at worst
+    ;; maybe system detects change and triggers an event
+    ;; but may need to rework things a bit to ensure 
+    ;; old system is consistent before event is processed
+    ;; eg saving dep-ids when system was created rather
+    ;; than pulling latest from var and let event do the 
+    ;; update for next time system is queried.  
+    ;; Another option might be to use clojure.tools.namespace
+    ;; tracker to trigger refresh event when namespace changes
+    (dimond.impl.dime/assoc-var-component-dependencies system)))
 
 (defn dimond-dispatch [dimond event & args]
   (apply (partial (-> dimond meta ::dimond-dispatch) event) args))
@@ -145,7 +164,8 @@
 (defmethod dimond-atom-dispatch :default [var event & _]
   (debug "no handler for " event))
 
-
+;; todo: create-system indpendent of var/atom storage
+;; refactor a bit
 (defn var-storage [var create-system]
   (assert (var? var) "var required")
   (assert (ifn? create-system) "create system required")
@@ -159,18 +179,29 @@
   {::dimond-query (partial #'dimond-atom-query atom create-system)
    ::dimond-dispatch (partial #'dimond-atom-dispatch atom)})
 
-
+(defn build-system [namespaces]
+  (let [dime (dm/scan-namespaces namespaces)]
+    (zipmap (keys dime) (map dm/create-var-component (vals dime)))))
 
 (defn dimond [& args]
   (let [;; the-dimond {::dimond-query dimond-query
         ;;             ::dimond-dispatch dimond-dispatch}
 
         argmap (apply hash-map args)
-        {::keys [var atom create-system]} argmap
+        {::keys [var atom create-system namespaces]} argmap
 
         _ (assert (not (and (contains? argmap ::var) (nil? var)))
                   "Must specify #'var not var")
 
+        ;; create-system is optional if namespaces are specified
+        ;; as one will be created by scanning namespaces with 
+        ;; dime.  If both are specified the auto generated system
+        ;; will be passed to create-system so that additional 
+        ;; components can be added if desired
+        create-system (if namespaces
+                        (fn [& args] (apply (partial (or create-system identity) (build-system namespaces)) args))
+                        create-system)
+        
         dimond-state
         (if (and var create-system)
           (merge argmap (var-storage var create-system))
@@ -180,16 +211,10 @@
         (if (and atom create-system)
           (merge dimond-state (atom-storage atom create-system))
           dimond-state)
-        
+
         _ (assert (contains? dimond-state ::dimond-query) (str "must have " ::dimond-query))
-        _ (assert (contains? dimond-state ::dimond-dispatch) (str "must have " ::dimond-dispatch))
-        ]    
+        _ (assert (contains? dimond-state ::dimond-dispatch) (str "must have " ::dimond-dispatch))]    
     (letfn [(the-dimond [event & args]
               (apply (partial #'dimond-action (with-meta the-dimond dimond-state) event) args))]
       (with-meta the-dimond dimond-state))))
 
-
-
-;; (defn dimond-dime [namespaces]
-;;   (let [system-factory #(dm/build-system namespaces)]
-;;     (create-dimond (with-meta system-factory {}))))

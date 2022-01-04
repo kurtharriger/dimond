@@ -121,6 +121,14 @@
   (let [component (create-var-component* the-var)]
     (component/using component (vec (get-dep-ids the-var)))))
 
+(defn update-component-dependency-meta [component]
+  (if-let [the-var (get-var component)]
+    (component/using
+     ;; during refresh of depencencies we want to clear 
+     ;; the current dependencies first...
+     (vary-meta component dissoc ::component/dependencies)
+     (vec (get-dep-ids the-var)))
+    component))
 
 (comment
   (defn ^:expose testing [^:inject x & args] (vec (cons x args)))
@@ -134,3 +142,15 @@
 (defn build-system [namespaces] 
   (let [dime (scan-namespaces namespaces)]
     (zipmap (keys dime) (map create-var-component (vals dime)))))
+
+(defn assoc-var-component-dependencies [system]
+  (let [component-keys (keys system)
+        system
+        (zipmap component-keys
+                (mapv update-component-dependency-meta (vals system)))]
+    ;; updating with identity reinjects depenedencies 
+    ;; todo: trigger an event to allow components to optionally 
+    ;; restart, in most cases I want preserve system state in
+    ;; repl 
+    (component/update-system system component-keys identity))
+  )

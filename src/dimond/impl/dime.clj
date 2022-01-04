@@ -17,90 +17,47 @@
             namespaces)
       (dv/ns-vars->graph)))
 
-
-;; (defn start-injectable-function! [this]
-;;   (let [dependency-ids (get this ::ordered-dependency-ids)
-;;         the-var (get this ::var)
-;;         dependencies (map #(get this %) dependency-ids)
-;;         f (get this :f)]
-;;     (reset! f (apply partial the-var dependencies)))
-;;   this)
-
-;; (defn create-dime-component [id the-var ordered-dependency-ids]
-;;   (dmc/create-function-component
-;;    (fn [] (throw "System not Started"))
-;;    {:start #'start-injectable-function!
-;;     ::id id
-;;     ::var the-var
-;;     ::ordered-dependency-ids (vec ordered-dependency-ids)}))
-
-
-
-;; (defn create-dime-component [the-var]
-;;   (assert (var? the-var) "expecting a var")
-;;   (let [dependency-ids (select-)])
-;;   (partial (deref the-var) (select-keys ))
-;;   )
-
-
-;; (defn create-dime-components
-;;   [ids get-var get-deps]
-;;   (zipmap ids
-;;           (->> ids
-;;                (mapv (juxt identity get-var get-deps))
-;;                (map #(apply create-dime-component %)))))
-
-;; (defn build-system* [ids get-component get-deps]
-;;   (zipmap ids
-;;           (for [id ids
-;;                 :let [component (get-component id)]]
-;;             (if-let [deps (seq (get-deps id))]
-;;               (component/using component (vec deps))
-;;               component))))
-
-;; (defn build-system [namespaces]
-;;   (let [dime-map (scan-namespaces namespaces)
-;;         ids (keys dime-map)
-;;         deps-map (dime.core/attr-map dime-map :dep-ids)
-;;         component-map (create-dime-components ids dime-map deps-map)]
-;;     (build-system* ids component-map deps-map)))
-
-;; (defn- add-to-graph [graph [component-id dependency-ids]]
-;;   (reduce (fn [graph dependency-id]
-;;             (dep/depend graph component-id dependency-id))
-;;           graph dependency-ids))
-
-;; (defn build-dependency-graph-from-dime [dime-dep-graph]
-;;   (reduce add-to-graph (dep/graph) (dc/attr-map dime-dep-graph :dep-ids)))
-
-
+(defn get-var-dep-ids [the-var]
+  (-> the-var dt/iattrs :dep-ids))
 
 (defn get-var [var-component]
   (-> var-component meta ::var))
 
-(defn get-dep-ids [the-var]
-  (seq (-> the-var dt/iattrs :dep-ids)))
+(defn get-cached-var-value [var-component]
+  (-> var-component meta ::value))
 
-;; if var signature changes this will pull the new dependency without system restart
-;; however component will not resolve and inject the dependencies into the component
-;; until component is restarted so using the start component may have been better
-;; also need to rebuild the wrapper (component/using)
+(defn get-component-dep-ids [var-component]
+  (-> var-component meta ::dep-ids))
+
+;; if the var has changed but the dependencies are still the same
+;; we can use the updated function
+;; However, if the user has changed the dependency list then component
+;; must first be updated with the new dependencies.  If this is the case
+;; emit a warning and use the previous function value
+(defn get-usable-function [var-component]
+  (let [the-var (get-var var-component)]
+    (if (or (identical? the-var (get-cached-var-value var-component))
+            (= (get-var-dep-ids the-var) (get-component-dep-ids  var-component)))
+      the-var
+      ;; todo: dispatch event instead?
+      (do (debug the-var " dependency list has changed.  system refresh required to use new function")
+          (get-cached-var-value var-component)))))
+
 (defn get-partial-args [var-component]
-  (if-let [dep-ids (-> var-component get-var get-dep-ids )]
+  (if-let [dep-ids (seq (get-component-dep-ids var-component))]
     ((apply juxt dep-ids) var-component)))
 
 (defn gen-nonvariadic-invokes []
   (for [arity (range 0 21)
         :let [args (repeatedly arity gensym)]]
-                             ;((partial (apply partial testing          [0 2])                     1))
-    `(~'invoke [this# ~@args] ((partial (apply partial (get-var this#) (get-partial-args this#)) ~@args)))))
+    `(~'invoke [this# ~@args] ((partial (apply partial (get-usable-function this#) (get-partial-args this#)) ~@args)))))
 
 (defn gen-variadic-invoke []
   (let [args (repeatedly 21 gensym)]
-    `(~'invoke [this# ~@args] (apply (apply partial (get-var this#) (get-partial-args this#)) ~@args))))
+    `(~'invoke [this# ~@args] (apply (apply partial (get-usable-function this#) (get-partial-args this#)) ~@args))))
 
 (defn gen-apply-to []
-  `(~'applyTo [this# args#] (apply (apply partial (get-var this#) (get-partial-args this#)) args#)))
+  `(~'applyTo [this# args#] (apply (apply partial (get-usable-function this#) (get-partial-args this#)) args#)))
 
 (defn extend-IFn []
   `(clojure.lang.IFn
@@ -114,21 +71,22 @@
 
 (def-var-component)
 
-(defn create-var-component* [the-var]
-  (with-meta (->VarComponent) {::var the-var}))
 
-(defn create-var-component [the-var]
-  (let [component (create-var-component* the-var)]
-    (component/using component (vec (get-dep-ids the-var)))))
+(defn create-var-component* [the-var]
+  (with-meta (->VarComponent) 
+    {::var the-var
+     ; also save a copy of the var and dependencies
+     ::value (deref the-var)
+     ::dep-ids (get-var-dep-ids the-var)}))
 
 (defn update-component-dependency-meta [component]
-  (if-let [the-var (get-var component)]
-    (component/using
-     ;; during refresh of depencencies we want to clear 
-     ;; the current dependencies first...
-     (vary-meta component dissoc ::component/dependencies)
-     (vec (get-dep-ids the-var)))
-    component))
+  (-> component
+      (vary-meta dissoc ::component/dependencies)
+      (component/using
+       (vec (get-var-dep-ids (get-var component))))))
+
+(defn create-var-component [the-var]
+  (-> the-var create-var-component* update-component-dependency-meta))
 
 (comment
   (defn ^:expose testing [^:inject x & args] (vec (cons x args)))
@@ -143,7 +101,7 @@
   (let [dime (scan-namespaces namespaces)]
     (zipmap (keys dime) (map create-var-component (vals dime)))))
 
-(defn assoc-var-component-dependencies [system]
+(defn refresh-dependencies [system]
   (let [component-keys (keys system)
         system
         (zipmap component-keys

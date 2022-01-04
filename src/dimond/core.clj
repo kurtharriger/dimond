@@ -32,26 +32,7 @@
   ((-> dimond meta ::dimond-query) :create-system))
 
 (defn system [dimond]
-  (when-let [system ((-> dimond meta ::dimond-query) :system)]
-    ;; todo maybe raise an event to update system
-    ;; stored in var/atom? but what would be the trigger?
-    ;; this way we ensure the dependencies are updated
-    ;; at query time. Right now this seems fine since
-    ;; associng dependencies does not have other side
-    ;; effects such as restarting components... but
-    ;; could blindly applying dependencies may not
-    ;; always be what you want and sometimes a component
-    ;; may need to be restarted if a dependency changes
-    ;; but side effects should not happen here, at worst
-    ;; maybe system detects change and triggers an event
-    ;; but may need to rework things a bit to ensure 
-    ;; old system is consistent before event is processed
-    ;; eg saving dep-ids when system was created rather
-    ;; than pulling latest from var and let event do the 
-    ;; update for next time system is queried.  
-    ;; Another option might be to use clojure.tools.namespace
-    ;; tracker to trigger refresh event when namespace changes
-    (dimond.impl.dime/assoc-var-component-dependencies system)))
+  ((-> dimond meta ::dimond-query) :system))
 
 (defn dimond-dispatch [dimond event & args]
   (apply (partial (-> dimond meta ::dimond-dispatch) event) args))
@@ -108,6 +89,13 @@
     (dimond-dispatch dimond ::system-stopped system))
   dimond)
 
+(defmethod dimond-action ::refresh [dimond _action & _args]
+  (dimond-dispatch dimond ::system-refreshing)
+  (let [system (system dimond)
+        system (when system (component/stop-system system))]
+    (dimond-dispatch dimond ::system-refreshed system))
+  dimond)
+
 (defmethod  dimond-action :default [dimond action & args]
   (if-let [sys (system dimond)]
     (apply (partial system-action sys action) args)
@@ -129,10 +117,13 @@
     (debug "dimond-var-dispatch for " event)
     event))
 
+
 (defmethod dimond-var-dispatch ::system-started [var event & [system]]
   (alter-var-root var (constantly system)))
 (defmethod dimond-var-dispatch ::system-stopped [var event & [system]]
   (alter-var-root var (constantly nil)))
+(defmethod dimond-var-dispatch ::system-refreshed [var event & [system]]
+  (alter-var-root var (constantly system)))
 (defmethod dimond-var-dispatch :default [var event & _]
   (debug "no handler for " event))
 
@@ -161,6 +152,8 @@
   (reset! atom system))
 (defmethod dimond-atom-dispatch ::system-stopped [atom event & [system]]
   (reset! atom nil))
+(defmethod dimond-atom-dispatch ::system-refreshed [var event & [system]]
+  (reset! var (constantly system)))
 (defmethod dimond-atom-dispatch :default [var event & _]
   (debug "no handler for " event))
 
@@ -188,10 +181,9 @@
         ;;             ::dimond-dispatch dimond-dispatch}
 
         argmap (apply hash-map args)
-        {::keys [var atom create-system namespaces]} argmap
+        {the-var ::var the-atom ::atom} argmap
+        {::keys [create-system namespaces]} argmap
 
-        _ (assert (not (and (contains? argmap ::var) (nil? var)))
-                  "Must specify #'var not var")
 
         ;; create-system is optional if namespaces are specified
         ;; as one will be created by scanning namespaces with 
@@ -201,20 +193,21 @@
         create-system (if namespaces
                         (fn [& args] (apply (partial (or create-system identity) (build-system namespaces)) args))
                         create-system)
+
+        _ (assert create-system "do not know how to build system, specify create-system and/or namespaces")
+
+        dimond-store
+        (if the-var
+          (var-storage the-var create-system)
+          (atom-storage (or the-atom (atom nil)) create-system))
         
-        dimond-state
-        (if (and var create-system)
-          (merge argmap (var-storage var create-system))
-          argmap)
 
-        dimond-state
-        (if (and atom create-system)
-          (merge dimond-state (atom-storage atom create-system))
-          dimond-state)
-
+        dimond-state (merge argmap  dimond-store)
+        
         _ (assert (contains? dimond-state ::dimond-query) (str "must have " ::dimond-query))
         _ (assert (contains? dimond-state ::dimond-dispatch) (str "must have " ::dimond-dispatch))]    
     (letfn [(the-dimond [event & args]
               (apply (partial #'dimond-action (with-meta the-dimond dimond-state) event) args))]
       (with-meta the-dimond dimond-state))))
+
 

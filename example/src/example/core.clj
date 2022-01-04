@@ -40,28 +40,20 @@
         (stop))
     (debug "stop-server: Server is not running.")))
 
-;;(def dime-system (di/build-system [*ns*]))
-
 
 (defn create-system [dime-system port]
   (debug (str "create-system: Creating new system with port " port))
   (assoc dime-system
          :server (component/using
-               (di/create-component {:start #'start-server
-                                     :stop  #'stop-server
-                                     :port port})
-               {:app :app})))
+                  (di/create-component {:start #'start-server
+                                        :stop  #'stop-server
+                                        :port port})
+                  {:app :app})))
 
-(defonce system nil)
 
 (def dimond (di/dimond
-             ::di/var #'system
              ::di/namespaces [*ns*]
-             ::di/create-system #'create-system
-             ))
-
-
-
+             ::di/create-system #'create-system))
 
 (defn -main
   "Example ring server using component"

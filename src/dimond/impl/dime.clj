@@ -105,5 +105,15 @@
         ; updating with identity reinjects depenedencies 
         ; todo: trigger an event to allow components to optionally 
         ; restart?
+        ; todo: also refreshing dependencies from var wuold overwrite
+        ; any intentional remappings of dependencies that may have been
+        ; applied in create-system.  Perhaps need to move the dependency
+        ; remapping out of create system to a different user supplied 
+        ; function? given refresh is only intended for repl development
+        ; perhaps its fine if var is used as source of truth in dev
+        ; and create-system can be more explicit for prod configs
+        ; but could be confusing if system starts one way then changes
+        ; on first refresh, perhaps a refresh after create but that 
+        ; could also be confusing
         system (component/update-system system component-keys identity)]
     system))

@@ -19,7 +19,7 @@
 (defn ^:expose greeter2 [name]
   (str "Hi, " name))
 
-(defn ^:expose app [^{:inject :greeter} greeter req]
+(defn ^:expose app [^{:inject :greeter} greeter  req]
   (debug "app: " greeter req)
   {:body    (greeter (get-in req [:query-params "name"] "World"))})
 
@@ -65,5 +65,8 @@
     (on-signal :term shutdown)
     (on-signal :int  shutdown)))
 
-;; uncomment in repl to auto refresh
+;; uncomment in repl to auto refresh if you eval buffer on save
+;; but don't leave in uncommented as user namespace is only exists in 
+;; dev profile and wont compile in prod configurations
 ;; (user/dimond ::di/refresh)
+;; (user/dimond :app {})

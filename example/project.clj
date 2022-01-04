@@ -9,5 +9,7 @@
                  [http-kit "2.3.0"]
                  [ring/ring-core "1.9.4"]
                  [spootnik/signal "0.2.4"]]
+  :profiles {:dev {:source-paths ["dev"]
+                   :dependencies [[org.clojure/tools.namespace "0.2.4"]]}}
   :main example.core
   :repl-options {:init-ns example.core})

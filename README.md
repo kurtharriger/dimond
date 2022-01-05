@@ -6,7 +6,7 @@
 
 **Alpha: This was mostly hacked together during my Christmas holiday as an experiment** 
 
-> ...I do not currently have plans to maintain this project as Clojure is no loner my day job.  I would however like to contribute some of the code or ideas back to Dime.  In the future or feel free to fork this project and carry on.  
+> ...I do not currently have plans to maintain this project as Clojure is no loner my day job.  I would however like to contribute some of the code or ideas back to Dime and the Clojure Community. Feel free to fork this project and carry on.  if you want to contribute to moving this forward you can  find me as `@kurtharriger` on [Clojarians Slack](https://clojurians.slack.com/) or reach me via email at [kurtharriger@gmail.com](mailto:kurtharriger@gmail.com)
 
 This enables you to move your co-locate your dependency metadata on the functions making it possible to build your component system by providing a list of namespaces from the dependencies will be determined from your `defn` metadata.
 
@@ -14,7 +14,7 @@ The inspiration came form this [Blog Post](https://kumarshantanu.medium.com/depe
 
 In the short time I experimented with Dime however I found it difficult to remap dependencies before injecting them and no shutdown lifecycle for stateful components...
 
-As I set about adding these features I started to reuse some dependency code from [component](https://github.com/stuartsierra/component)  and decided to just map dime graph to components allowing one to use a proven tool [component](https://github.com/stuartsierra/component)  to manage lifecycles and [dime](https://github.com/kumarshantanu/dime) as a discovery tool.  
+As I set about adding these features I started experiment with reusing some dependency code from [component](https://github.com/stuartsierra/component) and decided to just map dime graph to components allowing one to use a proven tool [component](https://github.com/stuartsierra/component) to manage lifecycles and [dime](https://github.com/kumarshantanu/dime) as a discovery tool.  
 
 I also found that the repl experience of partial functions was not that great and needed to frequently restart the system to make changes visible... This is because partial functions were applied to the var values not the vars themselves an as such I rewrote the injection logic to preserve both the var and the value to enable instant usage of changes in the repl that are safe and simple dependency updates in place without restarting the system.
 
@@ -25,9 +25,7 @@ This utility can be bound to an external  var or atom that you may already be us
 
 I also started to experimented with an event driven system using queries to fetch system state and events to mutate it allowing me to keep the logic pure despite the seemingly mutable nature of dependency injection.  
 
-I believe that this query plus event model could be used to create plugins and intercepters to automatically decorate components when system starts or to provide default services when one is requested but not explicitly defined but non of that is implemented here yet.  
-
-Unfortunately my hack week has come to a close... but if you want to contribute to moving this forward you can  find me as `@kurtharriger` on [Clojarians Slack](https://clojurians.slack.com/) or reach me via email at [kurtharriger@gmail.com](mailto:kurtharriger@gmail.com)
+I believe that this query plus event model could be used to create plugins and intercepters to automatically decorate components when system starts or to provide default services when one is requested but not explicitly defined but non of that is implemented here yet...  Unfortunately, my holiday has come to an end for now.
 
 
 ## Does Clojure need a dependency injection tool?
@@ -114,6 +112,9 @@ In the following example (found in example folder) we express that our ring web 
 ```
 
 See `example` project for how to add lifecycle components and to rewire dependencies when building systems.  
+
+> Note I would recommend using namespace qualified component names using ^{:expose ::app} and ^{:inject ::app} instead to avoid potential naming colusions in larger systems.
+
 
 ## License
 

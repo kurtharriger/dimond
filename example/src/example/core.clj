@@ -19,7 +19,7 @@
 (defn ^:expose greeter2 [name]
   (str "Hi, " name))
 
-(defn ^:expose app [^{:inject :greeter} greeter  req]
+(defn ^:expose app [^{:inject :greeter2} greeter  req]
   (debug "app: " greeter req)
   {:body    (greeter (get-in req [:query-params "name"] "World"))})
 
@@ -44,6 +44,8 @@
 (defn create-system [dime-system port]
   (debug (str "create-system: Creating new system with port " port))
   (assoc dime-system
+         ;; overrides greeter to use greeter2 
+         :app    (component/using (dime-system :app) {:greeter :greeter2})
          :server (component/using
                   (di/create-component {:start #'start-server
                                         :stop  #'stop-server
@@ -65,8 +67,15 @@
     (on-signal :term shutdown)
     (on-signal :int  shutdown)))
 
-;; uncomment in repl to auto refresh if you eval buffer on save
+;; I auto evaluate my buffer on save. changing comment to do will 
+;; automatically refresh var dependencies 
 ;; but don't leave in uncommented as user namespace is only exists in 
 ;; dev profile and wont compile in prod configurations
-;; (user/dimond ::di/refresh)
-;; (user/dimond :app {})
+;; todo: better idea may be a file system watcher in user to trigger
+;; refresh when file is saved maybe.
+;; note refrshing dependencies does not restart the system so state
+;; such as running http servers are preserved
+(comment
+  (user/dimond ::di/refresh)
+  (user/dimond :app {})
+  )
